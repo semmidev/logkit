@@ -77,7 +77,9 @@ func main() {
 	)
 
 	if err := doWork(ctx, logger); err != nil {
-		logger.Error(ctx, "work failed", "error", err)
+		// Log via our custom helper function, which internally uses WithCallerSkip(1)
+		// so that the log source points here (basicapp/main.go:81) instead of the helper func.
+		logTransactionError(ctx, logger, "tx_billing_888", err)
 	}
 
 	// With() creates a child logger that always includes these fields --
@@ -111,4 +113,12 @@ func queryDatabase() error {
 	// Pretend this is what a real driver returned -- full of internal
 	// detail (host, port, schema) that must never reach a client.
 	return errors.New(`pq: connection to "db.internal:5432/billing" refused`)
+}
+
+// logTransactionError is a helper function wrapping error logging.
+// It uses WithCallerSkip(1) so the reported file:line location points
+// to its caller (the main flow) rather than this function.
+func logTransactionError(ctx context.Context, logger *logkit.Logger, txID string, err error) {
+	skippedLogger := logger.WithCallerSkip(1)
+	skippedLogger.Error(ctx, "transaction failed", "tx_id", txID, "error", err)
 }
