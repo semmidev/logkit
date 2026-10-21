@@ -2,10 +2,15 @@ package slogx
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"sync"
 	"time"
 )
+
+// ErrClosed is returned by Write after Close has been called, instead of
+// silently dropping the bytes into a buffer that will never be flushed.
+var ErrClosed = errors.New("slogx: AsyncWriter is closed")
 
 // AsyncWriter is a thread-safe, asynchronous buffered writer.
 // It wraps an underlying io.Writer and flushes its buffer periodically
@@ -17,6 +22,9 @@ type AsyncWriter struct {
 	stop          chan struct{}
 	done          chan struct{}
 	flushInterval time.Duration
+	closeOnce     sync.Once
+	closeErr      error
+	closed        bool
 }
 
 // NewAsyncWriter creates a new AsyncWriter wrapping w.
@@ -46,6 +54,9 @@ func NewAsyncWriter(w io.Writer, bufferSize int, flushInterval time.Duration) *A
 func (aw *AsyncWriter) Write(p []byte) (n int, err error) {
 	aw.mu.Lock()
 	defer aw.mu.Unlock()
+	if aw.closed {
+		return 0, ErrClosed
+	}
 	return aw.buf.Write(p)
 }
 
@@ -61,26 +72,29 @@ func (aw *AsyncWriter) Sync() error {
 	return aw.Flush()
 }
 
-// Close flushes the buffer, stops the background flushing goroutine, and closes the underlying writer if it implements io.Closer.
+// Close flushes the buffer, stops the background flushing goroutine, and
+// closes the underlying writer if it implements io.Closer. Safe to call
+// multiple times, including concurrently: only the first call does the
+// work, later calls return the same result. Writes racing Close either
+// land before the final flush, or get ErrClosed back instead of being
+// dropped silently.
 func (aw *AsyncWriter) Close() error {
-	select {
-	case <-aw.stop:
-		// Already closed
-		return nil
-	default:
-	}
+	aw.closeOnce.Do(func() {
+		close(aw.stop)
+		<-aw.done
 
-	close(aw.stop)
-	<-aw.done
-
-	err := aw.Flush()
-
-	if closer, ok := aw.w.(io.Closer); ok {
-		if closeErr := closer.Close(); closeErr != nil && err == nil {
-			err = closeErr
+		aw.mu.Lock()
+		aw.closed = true
+		err := aw.buf.Flush()
+		if closer, ok := aw.w.(io.Closer); ok {
+			if closeErr := closer.Close(); closeErr != nil && err == nil {
+				err = closeErr
+			}
 		}
-	}
-	return err
+		aw.mu.Unlock()
+		aw.closeErr = err
+	})
+	return aw.closeErr
 }
 
 func (aw *AsyncWriter) flusher() {

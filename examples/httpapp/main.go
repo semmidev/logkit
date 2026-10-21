@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/semmidev/logkit"
@@ -93,7 +94,7 @@ func handleGetOrder(w http.ResponseWriter, r *http.Request) {
 
 	event.Enrich(ctx, "order.total_cents", order.TotalCents)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"id":"` + order.ID + `","total_cents":` + itoa(order.TotalCents) + `}`))
+	w.Write([]byte(`{"id":"` + order.ID + `","total_cents":` + strconv.Itoa(order.TotalCents) + `}`))
 }
 
 func handlePanicDemo(w http.ResponseWriter, r *http.Request) {
@@ -115,23 +116,4 @@ func lookupOrder(ctx context.Context, id string) (*order, error) {
 			errors.New(`pq: no rows in result set for orders where id=999`))
 	}
 	return &order{ID: id, TotalCents: 15999}, nil
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var b []byte
-	for n > 0 {
-		b = append([]byte{byte('0' + n%10)}, b...)
-		n /= 10
-	}
-	if neg {
-		b = append([]byte{'-'}, b...)
-	}
-	return string(b)
 }

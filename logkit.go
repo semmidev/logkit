@@ -70,9 +70,11 @@ type Config struct {
 	// os.Stderr. Ignored if Handler is set.
 	Writer io.Writer
 	// Level sets the initial minimum level. Defaults to slog.LevelInfo.
-	// You can change it later at runtime via Logger.SetLevel --
-	// New always wraps this in an internal *slog.LevelVar regardless of
-	// what's passed here.
+	// You can change it later at runtime via Logger.SetLevel -- New
+	// always wraps this in an internal *slog.LevelVar regardless of
+	// what's passed here. Only handlers built from Format/Writer honor
+	// SetLevel: a custom Handler that ignores this LevelVar makes
+	// SetLevel a no-op, so level your custom handler its own way.
 	Level slog.Level
 	// AddSource includes file:line on every record. Ignored if Handler
 	// is set (configure it directly on your handler instead).
@@ -143,11 +145,10 @@ func New(cfg Config) *Logger {
 	}
 
 	return &Logger{
-		slog:       sl,
-		level:      level,
-		addSource:  addSource,
-		writer:     w,
-		callerSkip: 0,
+		slog:      sl,
+		level:     level,
+		addSource: addSource,
+		writer:    w,
 	}
 }
 
@@ -231,21 +232,19 @@ func (l *Logger) log(ctx context.Context, level slog.Level, msg string, args ...
 		pc = pcs[0]
 	}
 	r := slog.NewRecord(time.Now(), level, msg, pc)
-	if ctx != nil {
-		if v := logctx.RequestID(ctx); v != "" {
-			r.AddAttrs(slog.String("request_id", v))
-		}
-		if v := logctx.CorrelationID(ctx); v != "" {
-			r.AddAttrs(slog.String("correlation_id", v))
-		}
-		if v := logctx.TraceID(ctx); v != "" {
-			r.AddAttrs(slog.String("trace_id", v))
-		}
-		if v := logctx.SpanID(ctx); v != "" {
-			r.AddAttrs(slog.String("span_id", v))
-		}
-		logctx.AddFieldsToRecord(ctx, &r)
+	if v := logctx.RequestID(ctx); v != "" {
+		r.AddAttrs(slog.String("request_id", v))
 	}
+	if v := logctx.CorrelationID(ctx); v != "" {
+		r.AddAttrs(slog.String("correlation_id", v))
+	}
+	if v := logctx.TraceID(ctx); v != "" {
+		r.AddAttrs(slog.String("trace_id", v))
+	}
+	if v := logctx.SpanID(ctx); v != "" {
+		r.AddAttrs(slog.String("span_id", v))
+	}
+	logctx.AddFieldsToRecord(ctx, &r)
 	r.Add(args...)
 	_ = l.slog.Handler().Handle(ctx, r)
 }

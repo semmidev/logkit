@@ -356,4 +356,3 @@ func TestCallerSkip(t *testing.T) {
 		t.Errorf("expected source to skip helper, got %v", sourceSkipped["function"])
 	}
 }
-

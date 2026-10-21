@@ -1,9 +1,6 @@
 package sampler
 
-import (
-	"math/rand"
-	"time"
-)
+import "math/rand"
 
 // Rule is a single "always keep if..." predicate evaluated against a
 // completed event's fields. TailSampler runs every Rule before falling
@@ -55,11 +52,13 @@ func (s *TailSampler) ShouldSample(fields map[string]any) bool {
 			return true
 		}
 	}
-	r := s.Rand
-	if r == nil {
-		r = globalRand
+	if s.Rand != nil {
+		// Field is for deterministic tests; it is NOT concurrency-safe,
+		// so only use it when the caller supplied one.
+		return s.Rand.Float64() < s.Rate
 	}
-	return r.Float64() < s.Rate
+	// Top-level rand is goroutine-safe; rand.New sources are not.
+	return rand.Float64() < s.Rate
 }
 
 // --- Built-in rules -------------------------------------------------
@@ -133,5 +132,3 @@ func asFloat(v any) (float64, bool) {
 		return 0, false
 	}
 }
-
-var globalRand = rand.New(rand.NewSource(time.Now().UnixNano()))

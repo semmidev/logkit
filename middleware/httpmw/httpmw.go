@@ -28,15 +28,14 @@ type Config struct {
 	// Logger is required: the canonical log line is emitted through it.
 	Logger *logkit.Logger
 
-	// RequestIDHeader is the inbound/outbound header used to
-	// propagate the request id. Defaults to "X-Request-Id".
+	// RequestIDHeader is the inbound request id header, echoed back on
+	// responses. Defaults to "X-Request-Id".
 	RequestIDHeader string
 
-	// CorrelationIDHeader is the inbound/outbound header used to
-	// propagate the correlation id across service boundaries. Defaults
-	// to "X-Correlation-Id". If absent on an inbound request, the
-	// request id is reused as the correlation id (so a single-service
-	// call still has one).
+	// CorrelationIDHeader is the inbound correlation id header, echoed
+	// back on responses. Defaults to "X-Correlation-Id". If absent on an
+	// inbound request, the request id is reused as the correlation id
+	// (so a single-service call still has one).
 	CorrelationIDHeader string
 
 	// Sampler decides which completed request events actually get
@@ -191,4 +190,16 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.ResponseWriter.Write(b)
+}
+
+// Flush implements http.Flusher so SSE/streaming handlers keep working
+// behind the middleware. No-op if the underlying writer doesn't support
+// it.
+func (w *statusWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		if !w.wroteHeader {
+			w.WriteHeader(http.StatusOK)
+		}
+		f.Flush()
+	}
 }

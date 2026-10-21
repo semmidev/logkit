@@ -69,3 +69,45 @@ func TestAsyncWriter_FlushOnClose(t *testing.T) {
 		t.Errorf("expected close to flush buffer, got: %s", buf.String())
 	}
 }
+
+func TestAsyncWriter_WriteAfterCloseErrors(t *testing.T) {
+	buf := &safeBuffer{}
+	aw := slogx.NewAsyncWriter(buf, 1024, 10*time.Second)
+	if err := aw.Close(); err != nil {
+		t.Fatalf("close failed: %v", err)
+	}
+	if _, err := aw.Write([]byte("lost")); err == nil {
+		t.Fatal("Write after Close must fail, not silently buffer")
+	}
+}
+
+func TestAsyncWriter_ConcurrentWriteAndClose(t *testing.T) {
+	// Close racing Close must not panic ("close of closed channel") and
+	// writes racing Close must not disappear silently under -race.
+	buf := &safeBuffer{}
+	aw := slogx.NewAsyncWriter(buf, 1024, 50*time.Millisecond)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				_, _ = aw.Write([]byte("payload\n"))
+			}
+		}()
+	}
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = aw.Close()
+		}()
+	}
+	wg.Wait()
+
+	// last Close result is stored; calling again returns the same verdict
+	if err := aw.Close(); err != nil {
+		t.Fatalf("repeat Close returned error: %v", err)
+	}
+}

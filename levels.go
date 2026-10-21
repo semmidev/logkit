@@ -1,6 +1,9 @@
 package logkit
 
-import "log/slog"
+import (
+	"log/slog"
+	"strings"
+)
 
 // Custom levels that extend the four built-in slog levels
 // (Debug=-4, Info=0, Warn=4, Error=8).
@@ -51,18 +54,18 @@ func LevelString(lvl slog.Level) string {
 // the counterpart to LevelString and is handy for reading the level out
 // of an env var or config file.
 func ParseLevel(s string) (slog.Level, bool) {
-	switch s {
-	case "trace", "TRACE", "Trace":
+	switch strings.ToLower(s) {
+	case "trace":
 		return LevelTrace, true
-	case "debug", "DEBUG", "Debug":
+	case "debug":
 		return slog.LevelDebug, true
-	case "info", "INFO", "Info", "":
+	case "info", "":
 		return slog.LevelInfo, true
-	case "warn", "WARN", "Warn", "warning", "WARNING", "Warning":
+	case "warn", "warning":
 		return slog.LevelWarn, true
-	case "error", "ERROR", "Error":
+	case "error":
 		return slog.LevelError, true
-	case "fatal", "FATAL", "Fatal":
+	case "fatal":
 		return LevelFatal, true
 	default:
 		return slog.LevelInfo, false

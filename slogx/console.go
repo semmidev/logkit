@@ -28,7 +28,7 @@ const (
 )
 
 func levelColor(l slog.Level) string {
-	switch levelString(l) {
+	switch LevelName(l) {
 	case "TRACE":
 		return ansiGray
 	case "DEBUG":
@@ -96,7 +96,7 @@ func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 	}
 
 	// Level, colorized and padded.
-	lvl := levelString(r.Level)
+	lvl := LevelName(r.Level)
 	buf.WriteString(levelColor(r.Level))
 	buf.WriteString(ansiBold)
 	fmt.Fprintf(&buf, "%-5s", lvl)

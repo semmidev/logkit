@@ -39,12 +39,14 @@ type Config struct {
 	// Logger is required.
 	Logger *logkit.Logger
 
-	// RequestIDMetadataKey is the incoming/outgoing metadata key used to
-	// propagate the request id. Defaults to "x-request-id". gRPC
+	// RequestIDMetadataKey is the incoming metadata key for the request
+	// id (read-only here; outbound propagation to downstream services is
+	// up to your client code). Defaults to "x-request-id". gRPC
 	// lowercases metadata keys, so use lowercase here.
 	RequestIDMetadataKey string
 
-	// CorrelationIDMetadataKey defaults to "x-correlation-id".
+	// CorrelationIDMetadataKey defaults to "x-correlation-id". Read from
+	// incoming metadata; falls back to the request id when absent.
 	CorrelationIDMetadataKey string
 
 	// Sampler decides which completed call events get logged. Defaults

@@ -86,7 +86,7 @@ func (o HandlerOptions) toStdlib() *slog.HandlerOptions {
 			// 1. Render custom levels ("TRACE"/"FATAL") with proper names.
 			if a.Key == slog.LevelKey {
 				if lvl, ok := a.Value.Any().(slog.Level); ok {
-					a.Value = slog.StringValue(levelString(lvl))
+					a.Value = slog.StringValue(LevelName(lvl))
 				}
 			}
 			// 2. Defense-in-depth redaction.
@@ -129,24 +129,28 @@ func (o HandlerOptions) toStdlib() *slog.HandlerOptions {
 	}
 }
 
-// levelString avoids an import cycle with the root logkit package (which
-// owns LevelTrace/LevelFatal) by duplicating the tiny name table here.
-// Both copies are covered by TestLevelStringConsistency in the root
-// package to keep them from drifting apart.
-func levelString(l slog.Level) string {
-	switch {
-	case l < slog.LevelDebug:
+// LevelName renders lvl using the extended name table. Single source of
+// truth for level naming: logkit.LevelString delegates here, and both
+// slogx handlers use it for the "level" attribute, so custom levels
+// print as "TRACE"/"FATAL" instead of slog's "DEBUG-4"/"ERROR+4"
+// default. Falls back to slog's String() for anything unnamed (e.g.
+// "INFO+2").
+func LevelName(l slog.Level) string {
+	switch l {
+	case slog.LevelDebug - 4:
 		return "TRACE"
-	case l < slog.LevelInfo:
+	case slog.LevelDebug:
 		return "DEBUG"
-	case l < slog.LevelWarn:
+	case slog.LevelInfo:
 		return "INFO"
-	case l < slog.LevelError:
+	case slog.LevelWarn:
 		return "WARN"
-	case l < slog.LevelError+4:
+	case slog.LevelError:
 		return "ERROR"
-	default:
+	case slog.LevelError + 4:
 		return "FATAL"
+	default:
+		return l.String()
 	}
 }
 
